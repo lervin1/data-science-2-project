@@ -1,0 +1,111 @@
+---
+title: "Executive Summary: Predicting Hotel Cancellations"
+subtitle: |
+  | Final Project Executive Summary 
+  | Data Science 2 with R (STAT 301-2)
+author: "Lindsay Ervin"
+date: today
+format:
+  html:
+    
+    toc: true
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+from: markdown+emoji 
+reference-location: margin
+citation-location: margin
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| label: load-packages-data
+#| echo: false
+
+# load packages
+library(tidyverse)
+library(tidymodels)
+library(here)
+
+# load data
+load(here("results/results_table_1.rda"))
+load(here("results/results_table_2.rda"))
+load(here("results/conf_matrix.rda"))
+```
+
+
+::: {.callout-tip icon=false}
+
+## Github Repo Link
+
+[My Github Repo Link](https://github.com/stat301-2-2024-winter/final-project-2-lervin1.git)
+
+:::
+
+## Introduction
+
+This project aims to using machine learning and tidy modeling with R in order to predict hotel cancellations. Using the [Hotel Booking Demand](https://www.kaggle.com/datasets/jessemostipak/hotel-booking-demand?resource=download) dataset, I was able to use the predictor variable `is_canceled` to tackle this project and ultimately model my data. Also, by analyzing the other variables in the dataset, I was able to truly understand relationships, and ultimately use this to create recipes and models that were strong and predictive.
+
+
+## Purpose
+
+The purpose of this project is to predict hotel cancellations. By analyzing the target variable `is_canceled` as well as looking at different predictor variables, I was able to go through the steps of the modeling process. Through the initial setup, I was essentially able to prepare for the modeling process by creating four different recipes (two main and two variants).I then used these recipes on a variety of models to see which one performed the best in predicting hotel cancellations.
+
+## Key Findings
+
+After thoroughly preparing for the modeling process through the initial split of the data into testing and training, using cross validation using v-fold, as well as baking and preparing the recipes, I was able to fit/tune six different models for each main recipe. The results for each of the models is displayed below in @fig-1 & @fig-2
+
+
+```{r}
+#| label: fig-1
+#| echo: false
+#| fig-cap: Results shown by the highest `roc_auc` value for each model using `hotel_basic_recipe` and `hotel_basic_tree_recipe`.
+
+results_table_1
+```
+
+
+```{r}
+#| label: fig-2
+#| echo: false
+#| fig-cap: Results shown by the highest `roc_auc` value for each model using `hotel_complex_recipe` and `hotel_complex_tree_recipe`.
+
+results_table_2
+```
+
+As we can see, the boosted tree model was the best model, as it performed the best with both of the recipes. More specifically, it was the winning when using the `hotel_basic_recipe`, which is essentially our "kitchen sink" recipe that includes all of our predictor variables.
+
+After I found our best model, I was able to fit it on the entire testing data. From this I was able to uncover the `roc_auc` value of 0.96324 while fitting it n the testing data, which makes sense as it is around the same for our winning boosted tree model. We can further interpret our results by looking at @fig-3 which essentially visualizes the accuracy of the model.
+
+```{r}
+#| label: fig-3
+#| echo: false
+#| fig-cap: Confusion matrix to check accuracy for final boosted tree model.
+
+conf_matrix |> 
+  autoplot(type = "heatmap")
+```
+
+This confusion matrix is essentially saying that when the boosted tree model predicts 0, it is correct 2,627 instances and incorrect on 244 instances. On the other hand, when the boosted tree model predicts 1, it is correct on 1,385 instances and incorrect on 144 instances. Now that we can truly visualize the accuracy of our best model, we can get a deeper understand of how our model performed and ultimately come to the conclusion that it predicts hotel cancellations very well.
+
+## Main Issues
+
+Through machine learning and modeling, it is inevitable to face challenges and issues. One of the main issues that I encountered during this project was the dataset having many observations and ultimately being too big to perform the models needed given the allotted time period. This was something that I was unaware of at first, as I started modeling my data with over 100,000 observations. I was aware something was off when my null and logistic model took over 10 minutes to run, as it should only take around 1 minute. Once I understood the issue at hand I was able to cut my dataset down to around 20,000 observations, as I only focused on hotel bookings from 2015. This is something that I had to do because of time constraints, but ultimately, in the future, I think it would be interesting to tackle a different year and compare the two.
+
+All and all, some of the most difficult aspects of this project was physically running the models, which was very time consuming and involved a lot of waiting. In the end, though, it was rewarding to see my models run and ultimately find which model was the best for predicting hotel cancellations.
+
+## Conclusion
+
+In summary, this project stemmed from a curiosity about how hotels could anticipate cancellations and leverage this insight to optimize their operations for increased profitability. Through the exploration of various models, we identified one particularly robust in predicting cancellations. This knowledge empowers hotel management to proactively plan for future scenarios, potentially overbooking to maximize occupancy rates and, consequently, boost profits.
+
+## References
+
+::: {.callout-tip icon=false}
+
+## Link to Dataset
+
+[Hotel Booking Demand Dataset](https://www.kaggle.com/datasets/jessemostipak/hotel-booking-demand/data)
+
+:::

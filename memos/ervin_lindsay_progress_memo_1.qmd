@@ -1,0 +1,111 @@
+---
+title: "Progress Memo 1"
+subtitle: |
+  | Final Project 
+  | Data Science 2 with R (STAT 301-2)
+author: "Lindsay Ervin"
+date: today
+format:
+  html:
+    
+    toc: true
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+from: markdown+emoji 
+reference-location: margin
+citation-location: margin
+editor_options: 
+  chunk_output_type: console
+---
+
+
+::: {.callout-tip icon=false}
+
+## Github Repo Link
+
+[My Github Repo Link](https://github.com/stat301-2-2024-winter/final-project-2-lervin1.git)
+
+:::
+
+
+## Data source
+
+For my final project I have decided to analyze the `hotel_bookings` dataset^[This contains the link to the dataset off Kaggle --- [click here for Kaggle link](https://www.kaggle.com/datasets/jessemostipak/hotel-booking-demand?resource=download)] off Kaggle. This dataset contains booking information for a city hotel and a resort hotel, and includes information such as when the booking was made, length of stay, and the cancellation status, among other things. This dataset is perfect for predicting the cancellations a hotel has in order for the hotel to know whether to overbook or not.
+
+## Why this data
+
+I chose this dataset because I am intrigued by the idea of overbooking a hotel in anticipation of cancellations. I think it is interesting to note the different variables that can affect cancellations in a hotel, as well as analyzing the different things and variables that can be used by hotel owners to minimize the amount of cancellations. As someone who stays in hotels often, as I travel for swimming and vacations, I find it very interesting to note the cancellations that hotels have to endure on a day-to-day basis.
+
+With that being said, my prediction research objective is **to predict the cancellations of hotel bookings through this dataset.** This is a binary classification problem.
+
+Having a prediction model would be useful to the problem of cancellations with hotel bookings because hotels can allocate their resources more effectively by anticipating cancellations. They can see how much they can overbook their hotels in order to maximize the number of people staying there at one time, which inevitable can maximize their profits. They can also reevaluate their marketing strategies and pricing, as if they see a lot of cancellations they may want to consider lowering their prices or posting better photos of their hotels online.
+
+## Data quality & complexity check
+
+```{r}
+#| label: data-quality-check
+#| echo: true
+
+# load libraries
+library(tidyverse)
+library(naniar)
+
+# reading in data
+hotel_bookings <- read_csv("data/hotel_bookings.csv")
+
+print(hotel_bookings)
+
+# looking at data
+summary(hotel_bookings)
+```
+
+As we can see, this dataset has 32 variables. As of now, there are 18 numeric variables, 13 categorical variables, and 1 unknown type. The unknown type will eventually be transformed into a date variable through data wrangling. Many of the other variables that are numeric will be transformed into factor variables as well, instead of numeric. This essentially means that variables that have a range of 0 or 1 right now, will be transformed into a factor to represent the "true" or "false" of that specific variable.
+
+```{r}
+#| label: check-missing
+#| echo: true
+
+# looking for na values and changing variables to factor
+hotel_bookings_new <- hotel_bookings |> 
+  mutate(company = na_if(as.character(company), "NULL"),
+         agent = na_if(as.character(agent), "NULL"),
+         country = na_if(as.character(country), "NULL"),
+         is_canceled = factor(is_canceled))
+
+colSums(is.na(hotel_bookings_new))
+gg_miss_var(hotel_bookings_new)
+```
+
+It is revealed that there is a lot of missingness in the dataset. There are many missing values in the `agent` column as well as the `company` and `country` column. This is not much of an issue because these variables are not important to the conduction of my research and predictions.
+
+## Target variable analysis
+
+```{r}
+#| label: variable-analysis
+
+# looking at reservations status
+hotel_bookings |> 
+  na.omit() |> 
+  ggplot(aes(x = reservation_status)) +
+  geom_bar()
+
+hotel_bookings |> 
+  na.omit() |> 
+  ggplot(aes(x = is_canceled)) +
+  geom_bar()
+
+hotel_bookings |> 
+  na.omit() |> 
+  ggplot(aes(x = booking_changes)) +
+  geom_boxplot()
+
+```
+
+It is difficult to tell the spread of cancellations because it is a categorical variable. This does not mean we cannot still do predictions on this variable. In regards to the spread, it seems that there are a lot of outliers within the dataset. We can fix this by looking at a specific range, for example, only analyzing the data from the past 2 years, because this dataset offers up data from the past decade, which can be difficult to fit and model.
+
+## Potential data issues
+
+Some potential issues with this dataset is that there are not many numeric variables, but a lot of factor and categorical variables. This can make it difficult to model and visualize the data, but it is definitely still possible. Also, it is not controlling for the quality of hotel. This means that we do not know the reasons for cancellations, and if they are due to the quality of the hotel or not. It is also missing the impersonal experience of the guest, which can make it difficult to understand the reasoning for hotel cancellations. Lastly, there seem to be a lot of NA values. This is not too much of a problem because the NA values are in columns that do not seem important to the prediction of hotel cancellations. 
+

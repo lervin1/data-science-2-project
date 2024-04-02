@@ -1,0 +1,131 @@
+---
+title: "Progress Memo 2"
+subtitle: |
+  | Final Project 
+  | Data Science 2 with R (STAT 301-2)
+author: "Lindsay Ervin"
+date: today
+format:
+  html:
+    
+    toc: true
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+from: markdown+emoji 
+reference-location: margin
+citation-location: margin
+editor_options: 
+  chunk_output_type: console
+---
+
+
+::: {.callout-tip icon=false}
+
+## Github Repo Link
+
+[My Github Repo Link](https://github.com/stat301-2-2024-winter/final-project-2-lervin1.git)
+
+:::
+
+
+```{r}
+#| label: load-packages-and-data
+#| echo: false
+
+# load packages
+library(tidyverse)
+library(tidymodels)
+library(here)
+
+# load data
+load(here("data/hotel_bookings_new.rda"))
+load(here("results/null_results.rda"))
+load(here("results/logistic_results.rda"))
+```
+
+```{r}
+#| label: set-seed
+#| echo: false
+
+# set seed
+set.seed(20243012)
+```
+
+
+## Prediction Problem and Data
+
+The goal of my project is to predict hotel cancellations given the dataset^[This contains the link to the dataset off Kaggle --- [click here for Kaggle link](https://www.kaggle.com/datasets/jessemostipak/hotel-booking-demand?resource=download)] I chose off of Kaggle. I want to do this because I am interested in seeing the different factors and variables that go into why people cancel their hotel reservations. This can ultimately be useful for hotel management, to see what factors go into hotel cancellations and essentially alter things so they can limit cancellations.
+
+## Assessment Metric
+
+Given that my problem is a classification problem, I will be prioritizing judging my models based on the `roc_auc`. The closer to 1 this value is, the model has a higher true positive rate while maintaining a lower false positive rate across different threshold settings. I will also be looking at the `accuracy` to judge which models are the best.
+
+## Analysis Plan
+
+### Current Work
+
+For the analysis of the project, I have already started working on some of the key aspects, as well as mapped out a majority of what else is to come.
+
+The first thing I did was read in my data and clean it. There were a couple things I needed to do before doing an initial split of my data and creating recipes. First, I had to change my predictor variable into a factor instead of a numeric variable. This way, I can easily do this classification problem and predict the cancellations hotels experience. Next, I had to address the missingness issue in my dataset. There were many values in the variables `agent`, `company`, and `country`. This is not a big issue, as the variables `agent` and `company` were ID variables and not important to the recipe, therefore I decided to remove it from the dataset. I also removed `counrty` because there was a significant amount of NA values that would have altered the recipe. There were also a few missing values in the variable `children`, I ultimately addressed this later on in the recipe with step_impute. After I addressed the missingness, I needed to make my character variables factor variables. This way my recipe and models can run smoothly, and addressed an error message I was receiving after running my models. I ultimately saved out this new dataset, and used it for my initial split.
+
+The next thing I did was perform the initial split of my data. I decided to set the `prop = 0.8` and used my predictor variable `is_canceled`. This ultimately splits my data into 80% training and 20% testing. I then saved the training and testing data to my `results` folder.
+
+I also created my folds data using cross validation. I used vfolds and set `v = 10` and the repeats to 6. I did this because my dataset is a bit larger than the ones we have been previously working with. I saved it to my `results` folder as well.
+
+The steps mentioned above can ultimately be found in the r-scripts `0a_data_collection.R`, `0b_data_cleaning.R`, and `1_initial_setup.R`. 
+
+I then went to create my baseline recipe. This recipe is very basic and includes all of the variables from the original dataset except the variables that I had previously removed. It also includes variables I created in my data cleaning and wrangling step that I felt would be interesting and useful for making predictions. This step can ultimately be found in the `2_recipes.R` r-script. This will be where I keep all of my recipes, which I will be creating as I get deeper into the project.
+
+So far, I have created a standard null model as my baseline model. I fitted the model as well, as these steps can be found in the `3_fit_baseline.R` r-script. I utilized my baseline recipe during the fitting process and will provide a short analysis below.
+
+I have also created a logistic model that I fit in the `3_fit_logistic.R` r-script. I also used the baseline recipe for this, for now, as I will create more complex, specific recipes going forward.
+
+Lastly, I started working in my `3_fit_lasso.R` r-script. I will continue this work in the next couple of days, but for now I have created an elastic net model and workflow that will essentially need to be tuned. 
+
+### Future Planning
+
+Going forward, I will create more complex recipes that will be better predictors of hotel cancellations. I want to have a recipe that only includes the variables that I personally created from other variables in the data wrangling process, because I feel they are good predictor variables for hotel cancellations. This is useful for understanding the impact of specific variables on the model's performance and interpretability. It can help identify whether including or excluding certain variables improves the model's predictive power. I will adjust all of my recipes so that they are appropriate for each model I am fitting, as I plan to use 4 additional model types. 
+
+As mapped out in my `r-scripts` folder, I plan on utilizing the K-nearest neighbor, boosted tree, random forest, and lasso as my next four models in addition to the models I have set up (baseline and logistic). I have set up r-scripts for each model as placeholders, but understand that I might need to add more, with tuning steps for hyperparameters in the future.
+
+My tree-based models (knn, rf, and boosted tree) are ultimately my nonparametric models. I will create r-scripts for the model analysis for these models, which will be separate from my parametric models.
+
+After creating and fitting my models and seeing which models perform the best by looking at the `roc_auc` and `accuracy`, I will fit my best model to my entire training dataset. This can be found in the final fit and final fit analysis r-scripts I will create once I solidify my plan.
+
+## Initial Two Models
+
+### Baseline Model
+
+```{r}
+#| label: baseline-model
+#| echo: false
+
+null_results |> 
+  knitr::kable()
+```
+
+Since this is a null model, it is not meant to be very complex, and the results are expected to be pretty poor/mediocre. A `roc_auc` value of 0.5 is actually pretty common in null models. As for the `accuracy` value, it indicates that my model predicted 62% of the target variable correctly. Ultimately with my other models, I will essentially build on this with more complex models that outperform my null model.
+
+### Logistic Model
+
+```{r}
+#| label: logistic-model
+#| echo: false
+
+logistic_results |> 
+  knitr::kable()
+```
+
+For my logistic model, it seems that the `roc_auc` value is 0.87, which is much closer to 1 than our null model. As for the `accuracy` value, it indicates that my model predicted 82% of the target variable correctly. This ultimately outperforms the null model, which is expected because it is more complex than the null model.
+
+I will essentially build off of this by creating more complex recipes and utilizing tree-based models as well as models such as lasso to evaluate my predictions.
+
+## Next Steps
+
+For the future of my project, I will create 4 more recipes and use them for the models I described I would use earlier. I might want to perform transformations on certain predictor variables to use for one of my more complex recipes. Also possibly looking at the `country` variable, as I originally removed due to NA it but seeing the results without removing the variable can be interesting.
+
+I will continue making and fitting my models that I have described above. I will use my new recipes so I can perform more in-depth data exploration and analysis and truly see which variables are the best predictors.
+
+Although I have not set up all of my r-scripts because I have not 100% finalized my plans, I will continue to work on the project and create r-scripts when appropriate. I have mapped out most of my project with current placeholder r-scripts and folders, though, for the purpose of this progress memo.

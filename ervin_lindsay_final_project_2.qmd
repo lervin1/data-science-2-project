@@ -1,0 +1,427 @@
+---
+title: "Predicting Hotel Cancellations"
+subtitle: |
+  | Final Project 
+  | Data Science 2 with R (STAT 301-2)
+author: "Lindsay Ervin"
+date: today
+format:
+  html:
+    
+    toc: true
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+from: markdown+emoji 
+reference-location: margin
+citation-location: margin
+editor_options: 
+  chunk_output_type: console
+---
+
+
+::: {.callout-tip icon=false}
+
+## Github Repo Link
+
+[My Github Repo Link](https://github.com/stat301-2-2024-winter/final-project-2-lervin1.git)
+
+:::
+
+```{r}
+#| label: load-packages-data
+#| echo: false
+
+# load packages
+library(tidyverse)
+library(tidymodels)
+library(here)
+library(naniar)
+library(knitr)
+library(DT)
+
+# load data
+load(here("data-splits/hotel_train.rda"))
+load(here("results/results_table_1.rda"))
+load(here("results/results_table_2.rda"))
+load(here("results/conf_matrix.rda"))
+load(here("results/roc_final.rda"))
+load(here("results/acc_final.rda"))
+load(here("results/miss_sum.rda"))
+load(here("data/hotel_bookings_new.rda"))
+hotel_bookings_new_codebook <- read_csv(here("data/hotel_bookings_new_codebook.csv"))
+```
+
+
+## Introduction
+
+Throughout this project, I will be exploring machine learning and tidy modeling with R. My main focus is on building a predictive model in order to predict hotel cancellations, determining whether or not someone is likely to cancel their hotel reservations based on other variables in the [Hotel Booking Demand](https://www.kaggle.com/datasets/jessemostipak/hotel-booking-demand?resource=download) dataset. My target variable for this predictive model is labeled as `is_canceled`, indicating a 0 is the booking was not cancelled and a 1 if the booking was, in fact, cancelled. 
+
+Ultimately, it is very useful to predict hotel cancellations. Exploring this prediction model would be useful to the problem of cancellations with hotel bookings so that hotels can allocate their resources more effectively by anticipating cancellations. They can ultimately use this to see how much they can overbook their hotels in order to maximize the number of people staying there at one time, which inevitably can maximize their profits. They can also reevaluate their marketing strategies and pricing, as if they see a lot of cancellations they may want to consider lowering their prices or posting better photos of their hotel online. Personally, i am very intrigued by the idea of overbooking a hotel in anticipation of cancellations. I understand that airlines partake in this all the time, and I found it interesting that hotels can do the same. I think it is interesting to note the different variables that can affect cancellations in a hotel, as well as analyzing the different aspects that can be used by hotel owners to minimize the amount of cancellations. As someone who stays in hotels often, as I travel for swimming and vacations, I find it very interesting to note the cancellations that hotels have to endure on a day-to-day basis.
+
+To create and perform my predictive model, I will be utilizing the [Hotel Booking Demand](https://www.kaggle.com/datasets/jessemostipak/hotel-booking-demand?resource=download) dataset off of Kaggle. This dataset contains booking information for city hotels as well as resort hotels, and includes information such as when the booking was made, length of stay, and the cancellation status, among other things. It focuses on hotel stays from 2015-2017. For the sake of this project, I will be focusing on the year of 2015, as it will allow me to decrease the amount of observations from over 100,000 to about 22,000. This will allow my models to run smoother and for the tuning and fitting processes to ultimately run for a shorter duration.
+
+The dataset is a reliable source of information as it is derived from the [Hotel Booking Demand Datasets](https://www.sciencedirect.com/science/article/pii/S2352340918315191), written in 2019. It is important to note that the data has been pre-processed and cleaned for analysis, which includes handling missing values and transforming certain variables for better interpretability. I also contributed to the data cleaning process, as I transformed `NULL` values to `NA` values and created certain variables such as `tot_book`, `cancel_rate`, `room_match`, and `minors` based on other variables that were already present in the dataset, as I thought they would be interesting and good predictors to include in my recipes.
+
+This report will include two main recipes (a kitchen sink recipe as well as a recipe based on data exploration), as well as 2 variants based on what type of model it is (tree vs. non-tree based models). To utilize these recipes I will be fitting/tuning 6 model types, which include a null, logistic, elastic net, random forest, k-nearest neighbor, and boosted tree. I will fit/tune each with two recipes, one with the kitchen sink and one with my more complex recipe. This will ultimately be interesting to see which model performs the best and with which recipe.
+
+## Data Overview & Quality
+
+### The Dataset
+
+The Hotel Booking Demand dataset, which I have saved in the working environment as `hotel_bookings` contains 119,380 observations and 32 variables. Like I stated earlier, for the sake of this project I will be focusing only on the observations fro 2015, which cuts the number down to 21,996 observations. I have also gotten rid of 2 variables that were "ID" variables as well as had a lot of missingness, which we will explore below. This cuts the amount of variables to 30, and the amount of predictors to 29. This is saved out as `hotel_bookings_new`.
+
+The dataset includes categorical and numeric variables. I made all of the character variables factor variables for the sake of this project. Below I have listed the variables under its given specification.
+
+**Categorical variables:** `hotel` `is_canceled` `arrival_date_year` `arrival_date_month` `meal` `market_segment` `distribution_channel` `is_repeated_guest` `reserved_room_type` `assigned_room_type` `booking_changes` `deposit_type` `customer_type` `reservation_status`
+
+**Numeric variables:** `lead_time` `stays_in_week_nights` `stays_in_weekend_nights` `adults` `children` `babies` `previous_cancellations` `previous_bookings_not_cancelled` `days_in_waiting_list` `adr` `required_car_parking_spaces` `total_of_special_requests`
+
+In addition to the variables that were provided from the Hotel Booking Demand Dataset, I have created four other variables. First, `tot_book` was created by adding previous_cancellations and previous_bookings_not_canceled. This is to see how many bookings in total a person has made, cancelled or not. Next, `cancel_rate` is calculated by dividing previous_cancellations by tot_book. In addition, `room_match` is calculated to see if the reserved room type is the same as the assigned room type. Lastly, `minors` is used to see the number of children and babies combined, but will later be turned into a dummy variable depending on if that number is greater than 1.
+
+Please see the codebook displayed through @fig-23 in the [Appendix](#Appendix) for more information on the variables.
+
+### Missingness
+
+With any dataset, there is likely to be missingness with some of the variables. In regards to the `hotel_bookings_new` dataset, there is missingness that ultimately needs to be addressed. Ultimately, `the hotel_bookings_new` dataset is derived from the raw dataset saved at `hotel_bookings`. In that dataset, there were more variables that had missing values. I made the decision to remove those variables all together in my data cleaning phase, as most of them were `ID` variables that would not be useful for making predictions as well as where above the threshold of 40% missing.
+
+With that being said, we can now explore the missingness that we still encounter with our new hotel bookings dataset. In the dataset, there are only 3 variables with missing values. The variable `cancel_rate` has the most missing values with 17,300 missing values. This is because when I calculated the `cancel_rate`, many of the values were being divided by 0 which is undefined. This is not a big issue, as I still made the choice to keep this variable in my recipe as removing it only made a slight difference. In the future, I could try using recipes without this variable, and I will further explain this in my next steps. Next, the variable `children` has 4 missing values. This is an insignificant number of missing values and ultimately will not affect my recipes and models. Because the `minors` variable was created from the `children` variable, it also has 4 missing values.
+
+If you are interested in visually seeing the amount of missingness in my dataset, please refer to @fig-21 & @fig-22 in the [Appendix](#Appendix) for more information.
+
+### Target Variable and EDA 
+<a name="Target Variable and EDA"></a>
+
+My target variable (`is_canceled`) will be used in order to form this binary classification problem. I will now explore this variable to get a better sense of my data and how it can be useful for this problem.
+
+![A barplot indicating whether the hotel booking was cancelled or not, as 0 marks a booking that was not cancelled and 1 marks one that was cancelled.](figures/fig_1.png){#fig-1}
+
+As we can see through @fig-1, there are significantly less reservations that were cancelled than there were non-cancellations. This is ultimately expected as there should be less reservations cancelled. This imbalance, though, is something that needs to be addressed and will ultimately be taken into account when doing my initial split and cross validation.
+
+In order to create my more complex recipe, I needed to further explore the relationships between my target variable and my predictor variables to see which ones would be relevant to include in my recipe. I created a correlation matrix for my numeric data along with numerous barplots faceted by my target variable to truly see these relationships. This was all conducting on my training data.
+
+```{r}
+#| label: fig-2
+#| fig-cap: A correlation matrix that explores the relationship between the numeric variables in my dataset.
+#| echo: false
+
+hotel_train |> 
+  select(-days_in_waiting_list) |> 
+  select_if(is.numeric) |> 
+  na.omit() |> 
+  cor() |> 
+  corrplot::corrplot(method = 'color', diag = TRUE, 
+                     type = "lower", tl.cex = 0.7, 
+                     tl.col ="black")
+```
+
+As seen in @fig-2, there are a few variables that are closely correlated and that I want to focus on. First, `lead_time` and `adults` have a moderately strong correlation, as it seems to be around 0.4-0.6. Although this is not very strong, I would still like to include it in my data driven recipe. Next, we have `cancel_rate` and `lead_time`. These two variables are also around 0.4-0.6, as I will also include this as an interaction in my recipe. Lastly, we have the variables `cancel_rate` and `previous_bookings_not_canceled`. These have a very strong negative correlation, and I am excited to see how these interact.
+
+The other variables that seem to have a very strong correlation are variables that were essentially mutated in the data cleaning phase, therefore it makes sense they have a very strong correlation. Because some of the variables were created based on other variables, it would not make sense to include this in my recipe as a `step_interact`, as it would skew my results.
+
+To explore my categorical variables, I used the training dataset to create various barcharts to visualize the relationship between my target variable and these categorical variables.
+
+![A barplot conducted on the training dataset to indicating whether or not a hotel booking was cancelled, faceted by arrival date (month).](figures/fig_3.png){#fig-3}
+
+I have decided to include the variable `arrival_date_month` in my more complex recipe because it seems there is a lot of variation with cancellations based on the month the booking was intended for. For example, there are many more cancellations in September, but very new in November. This is interesting to note, as seen in @fig-3, as I am curious why this is.
+
+![A barplot conducted on the training dataset to indicating whether or not a hotel booking was cancelled, faceted by the market segment.](figures/fig_4.png){#fig-4}
+
+The market segment essentially the category of customers to which a booking or reservation belongs. For example, if the booking was indicated as "Direct", this means that the booking was made directly through the hotel's booking website. It is interesting to note in @fig-4 a majority of the cancelled bookings are through groups, as there are even more cancellations than non-cancellations in this category.
+
+![A barplot conducted on the training dataset to indicating whether or not a hotel booking was cancelled, faceted by deposit type.](figures/fig_5.png){#fig-5}
+
+It is interesting to note that in @fig-5 there were more cancellations when the deposit type was non-refundable. This is strange because if someone cannot get a refund on their deposit, I would think that they would be less likely to cancel their reservation. Because of this, I will include it in my recipe.
+
+![A barplot conducted on the training dataset to indicating whether or not a hotel booking was cancelled, faceted by hotel type.](figures/fig_6.png){#fig-6}
+
+I am intrigued by @fig-6 because it seems the number of cancellations and non-cancellations in city hotels is pretty proportional. On the other hand, there are a significantly less number of cancellations with resort hotels, as this ultimately makes sense because people tend to book vacations very far in advance, to the point where it is not worth cancelling.
+
+To view the other categorical variables that I analyzed, please see the [Appendix](#Appendix).
+
+
+## Methods
+
+### Data Splitting & Resampling
+
+For the predictions of hotel cancellations, this problem is a binary classification prediction problem. This means that the target variable (`is_canceled`), also known as the dependent variable or response variable, has only two outcomes or levels. These two classes are denoted as positive (1) and negative (0). 
+
+As for my data splitting procedure, I first conducted an initial split of my dataset in order to split my data into testing and training. The training dataset allows the model to learns patterns, relationships, and characteristics from this subset. The larger the training set, the better the model can potentially learn from the data. It's crucial for the model to see a diverse and representative sample of the data to generalize well to new, unseen data. On the other hand, the testing data is kept separate and untouched during the training process. Once the model is trained, it is evaluated on this testing set to assess how well it can generalize to new, unseen data. This evaluation provides an estimate of the model's performance on data it has not encountered during training. 
+
+I used the proportions of 80% and 20%, which indicates that 80% of my data will be used for training my machine learning model and 20% will be used for testing the performance of the model. This ultimately ensures that the model is trained on a sufficiently large dataset while still having a separate portion to evaluate its generalization performance. I also utilized the `strata` function inside of my initial split to ensure that the split is stratified based on my target variable `is_canceled`. This address the imbalance problem that I briefly explained earlier.
+
+I also utilized cross-validation using the `vfold_cv` function. This function is ultimately used to create cross-validation folds for model evaluation. I utilized 10 folds and 6 repeats which means that the entire cross-validation process is repeated 6 times. In each repetition, the dataset is randomly split into different training and validation sets, and the model is trained and evaluated multiple times. This helps in obtaining a more reliable estimate of the model's performance by averaging the results over different splits. I used these parameters because my dataset is not extremely large after I filtered my data. It is important to use multiple repeats when the dataset is not very large. It provides a more comprehensive assessment of how well the model generalizes to various subsets of the data. Also, to note, the training data is the data used for this process. 
+
+### Model Types
+
+For this project I have utilized 6 different types of models that will ultimately be fit/tuned as well as analyzed to see which model performs the best. Below I have distinctly identified the models I used as well as gave a brief description of what the model does.
+
+**Null Model:** serves as a baseline for comparison. It predicts the most common outcome in the training data and is used to assess whether a more complex model provides any meaningful improvement.
+
+**Logistic Regression Model:** a linear model for binary classification problems. it helps us predict the chances of someone cancelling their hotel reservation based on some factors, like whether they made a deposit or not for the room.
+
+**Elastic Net Model:** a model that can be used for classification problems that combines both lasso and ridge regularization terms. It is useful for feature selection and handling multicollinearity in classification tasks.
+
+**K-Nearest Neighbor Model:** predicts the label or value of a data point by averaging the labels or values of its k nearest neighbors in the feature space, using the collective characteristics of these neighbors to make a reliable estimation.
+
+**Boosted Tree Model:** constructs a robust predictive model through a sequential process of incorporating weak learners, each subsequent learner targeting and correcting the errors made by the models that came before it. This method iteratively refines predictions, with each new addition emphasizing the improvement of previous shortcomings in the overall model's performance.
+
+**Random Forest Model:** an ensemble learning method that builds a multitude of decision trees during training. It combines their predictions to improve accuracy and control overfitting. Random Forest is known for its robustness and ability to handle high-dimensional data.
+
+All and all, by including and utilizing these different models, I was able to see which one performs the best, which I will ultimately conduct my final fit to the testing data.
+
+### Tuning Parameters
+
+In regards to tuning parameters, it is different for every model, and not every model is tuned. For instance, my null and logistic models are not tuned, but only fit. This is because they are pretty basic models that have simple structures.
+
+The models that needed to be tuned were the elastic net, k-nearest neighbor, boosted tree, and random forest models. Below I will state the tuning parameters for each model.
+
+**Elastic Net:** For the elastic net models, there are two tuning parameter that needs to be addressed. First the `penalty` controls the balance between the Lasso and Ridge regularization terms. It is a value between 0 and 1, where Ridge is associated with 0 and Lasso with 1. The range ultimately represents a combination of the two. This is something I had to update as the default does not include 0, therefore excluding the ridge part of the model, which is a crucial aspect. Next, the `mixture` was also tuned. It controls the overall strength of regularization in the elastic net model.
+
+**K-Nearest Neighbors:** For the KNN models, there are there is only one tuning parameter that needs to be addressed. The `neighbors` tuning parameter specifies the number of nearest neighbors that the algorithm should consider when making predictions. For my KNN models, I did not update this hyperparameter, but instead decided to use the default number of nearest neighbors. In my opinion, this the default is sufficient as the `kknn` package was being used.
+
+**Boosted Tree:** For the boosted tree models, there are four tuning parameters that need to be addressed. First, the `mtry` parameter is tuned. This is the quantity of features selected randomly at each decision tree split point during the construction process. Based on the number of predictor variables I had (29) I chose the range (1,5), which is around the square root of 29. Next, the `min_n` parameter is tuned. This denotes the minimum number of observations needed to create a node in the decision tree while boosting. For this hyperparameter I did not request updates, as I used the default number that came with the package. Next, the `learn_rate` parameter is tuned. This ultimately governs the impact of each tree on the overall prediction. I set the range as (-5,-0.2), as I understand this is on the log scale. I decided to stick with this range as in previous labs we also used this range. Lastly, the `trees` parameter is tuned. Tuning the trees involves finding the optimal value for the hyperparameter that represents the total number of trees to be built during the boosting process. This is important as too few trees may result in underfitting, while too many trees can lead to overfitting and increased computational cost. U set my range as (50,500) as I felt this was a sufficient range. For my boosted tree models, I took the time to specify all of the levels for the tuning grid, which ultimately can maximize my results and make the model more precise.
+
+**Random Forest:** For the random forest models, there are two tuning parameters that need to be addressed. First, the `min_n` parameter was tuned, which is similar to the boosted tree model. It indicates the smallest number of observations needed to create a node within the decision tree. Personally, I did not update these hyperparameters, but instead used the default. Last, the `mtry` parameter is tuned. This represents the quantity of features chosen randomly at each split point during the construction of decision trees in the forest. For this I did update the hyperparameters, as for the random forest model that used my kitchen sink recipe, I did a range of (1,5) due to my 29 predictor variables. On the other hand, for my random forest model that used my more data driven recipe, I did a range of (1,4) because I only included 8 predictor variables in my recipe. Unlike my boosted tree models, I did not tune the number of trees, but instead set it equal to 1000. Tuning my trees for my random forest model can be something that I do in the future to improve my models and accuracy.
+
+### Recipes
+
+In order to run my models I created 4 recipes. I had 2 main recipes and 2 variants based on whether or not I was running a tree-based model. My first "kitchen sink" recipe is pretty basic, and includes almost all of the predictor variables in the `hotel_bookings_new` dataset. For my more complex recipe I performed a short EDA to see which predictor variables would be important to include in this recipe. I will outline the specific steps in my recipe below.
+
+#### "Kitchen Sink" Recipe
+
+For my first recipe, I created one that is pretty basic and specific for my null, logistic, and elastic net models. It is saved as `hotel_basic_recipe`.
+
+1. I used the function `step_rm` to remove the variable `reservation_status` because it had a direct correlation with my target variable, therefore was giving my models perfect results.
+
+2. I used the functions `step_impute_mode` and `step_impute_mean` in order to impute missing values for my numeric and categorical variables. For numeric variables, this step ultimately replaces missing values with the mean and for categorical variables it replaces missing values with the mode.
+
+3. I used the function `step_mutate` to mutate my variables `tot_book` and `minors`. I wanted to make these variables "dummy" variables, in a sense where if the value for these variables was greater than 1, then they should be classified as a 1, or true. 
+
+4. I used the function `step_dummy` to make all of my nominal, or categorical variables dummy variables.
+
+5. I used the function `step_zv` to remove predictors that have zero variance, which essentially as variables that do not vary across observations.
+
+6. I used the function `step_normalize` to normalize all of my predictor variables, which involves bringing them to a similar scale avoiding the dominance of any individual feature within the model.
+
+For my second recipe, I created a variant of the first recipe, that is ultimately compatible with tree-based models. It is saved as `hotel_basic_tree_recipe`.
+
+I included all of the steps from the first recipe, except `step_zv` and `step_normalize`. These steps are not necessary for tree-based models, as they have intrinsic characteristics that make these steps less relevant or even potentially counterproductive. I also included the argument `one_hot = TRUE` in the `stp_dummy` step. This encodes categorical variables as binary vectors, enabling seamless integration into the model.
+
+#### Recipes Based on Data Exploration
+
+For these next two recipes, I did a short EDA to evaluate which variables would be useful to include in this data driven recipe. First, I looked at the numeric variables by conducting a correlation matrix, which was visualized by @fig-2. I also created numerous bargraphs to explore the categorical variables which was also further explained above in the [Target Variable and EDA](#Target Variable and EDA) section.
+
+Ultimately, after exploring the variables in my dataset, I found it could be useful to add interaction terms between variables that are heavily correlated with each other, as well as include categorical variables that have an interesting distribution of 0s (not cancelled) and 1s (cancelled). It is saved as `hotel_complex_recipe`. I have further explained my steps that differ from my "kitchen sink" recipes below.
+
+1. I used the function `step_other` on my variable `market_segment` to handle infrequent categories. This groups infrequent categories in categorical variables into an “Other” category. I used the default number of occurrences for this step.
+
+2. I used the function `step_interact` to create interaction terms based on numeric variables I found were heavily correlated from my correlation matrix. I used this function for `cancel_rate` and `lead_time`, `cancel_rate` and `previous_bookings_not_canceled`, and `adults` and `lead_time`. 
+
+For my final recipe, which is a variant of the recipe I just described, is specific to tree based recipes, therefore it excludes the interaction terms, as well as the `step_zv` and `step_normalize` functions. This recipe is still more complex than the tree-based "kitchen sink" recipe because it utilizes only certain variables as well as the function `step_other`. It is saved as `hotel_complex_tree_recipe`.
+
+### Performance Metric
+
+For all of my models, I will be using the `roc_auc`  value to evaluate which model performs the best and select the model I will use for my final fit. The `roc_auc` value is a metric that can be used for binary classification models in order to evaluate the performance of the model. It ultimately stands for the area under the curve, and the higher the value, the better the model performed. On the other hand, A `roc_auc` score of 0.5 suggests that the model performs no better than random chance.
+
+
+## Model Building & Selection Results
+<a name="Model Building & Selection Results"></a>
+
+In @fig-7 & @fig-8  you will find the best results from each model. This is ultimately measured by taking the highest `roc_auc` value so that we can compare all of the models and see which one has the best results so we can fit it on the testing data.
+
+```{r}
+#| label: fig-7
+#| echo: false
+#| fig-cap: Results shown by the highest `roc_auc` value for each model using `hotel_basic_recipe` and `hotel_basic_tree_recipe`.
+
+results_table_1
+```
+
+```{r}
+#| label: fig-8
+#| echo: false
+#| fig-cap: Results shown by the highest `roc_auc` value for each model using `hotel_complex_recipe` and `hotel_complex_tree_recipe`.
+
+results_table_2
+```
+
+Based on the mean `roc_auc` value, we can see that my Boosted Tree models performed the best, specifically the one on the "kitchen sink" tree recipe. We can see that for both variations of the tree recipe, that the boosted tree model has mean `roc_auc` values of 0.9603079 & 0.9370944, which is greater than any other model. The boosted tree model on the "kitchen sink" tree recipe will be the one I use for my final fit, and ultimately used to fit on the testing data. This does not surprise me as boosted tree models are known for handling robust data as well as a lot of flexibility when setting the hyperparameters for tuning. Because I was able to specify these hyperparameters, I expected it to be the best model.
+
+It is important to note that the mean `roc_auc` values for the models used with the "kitchen sink" recipe perform better with the exception of the logistic model. This is interesting, as even though I hand selected variables for models ran in @fig-8, I could have potentially left out key variables that are great predictors for hotel cancellations. They are not drastically different, though, as many of the steps in both the main recipes and their variants overlap, with the exception of interaction terms and "othering" variables.
+
+### Reviewing Tuning Parameters
+
+Now I will review and analyze the tuning parameters for the elastic net, k-nearest neighbor, random forest, and boosted tree models using autoplots.
+
+#### Elastic Net
+
+![Autoplot for elastic net model using the second (complex) recipe.](figures/auto_1.png){#fig-9}
+
+![Autoplot for elastic net model using the second (complex) recipe.](figures/auto_2.png){#fig-10}
+
+Through @fig-9 we can see that the highest `roc_auc` values has a regularization from around 1e-11 to 1e-05. The amount of regularization refers to the strength or intensity of regularization applied to the model's parameters during the training process. We can see that after 1e-05 the `roc_auc` value drops drastically, which uncovers a relationship where the as the amount of regularization increases, the `roc_auc` decreases.
+
+A similar pattern can be seen in @fig-10, as the amount of regularization increases, the `roc_auc` decreases.
+
+It is important to note that the proportion of lasso penalty determines the amount of shrinkage applied to the coefficients by the lasso penalty relative to the ridge penalty. Therefore, when it is 0 it reduces to a ridge regression, and when it is 1 it reduces to a lasso regression. The 0.5 represents the combination of lasso and ridge penalties.
+
+#### K-Nearest Neighbor
+
+![Autoplot for k-nearest neighbors model using the first (basic) recipe.](figures/auto_3.png){#fig-11}
+
+![Autoplot for k-nearest neighbors model using the second (complex) recipe.](figures/auto_4.png){#fig-12}
+
+In @fig-11 & @fig-12 we can see how as the number or nearest neighbors increase, the `roc_auc` value increases as well. The `roc_auc` value does a sharp increase at 4 nearest neighbors. The `roc_auc` values are the highest around 15 neighbors. This can be true because by introducing more neighbors, the model is less likely to capture small fluctuations in the training data that may not be representative of the underlying patterns in the dataset. Ultimately, for future steps, I would like to incorporate more nearest neighbors, as I want to see what number it would take to start a decline in `roc_auc` values, or if the infinite increase in nearest neighbors results in the infinite increase in `roc_auc` values.
+
+#### Random Forest
+
+![Autoplot for random forest model using the first (basic) recipe.](figures/auto_5.png){#fig-13}
+
+![Autoplot for random forest model using the second (complex) recipe.](figures/auto_6.png){#fig-14}
+
+In @fig-13, when using my basic tree recipe, we can see that as the number of randomly selected predictors (mtry) increase, the `roc_auc` value also increases. It is also evident that when the min_n is around 2 the `roc_auc` value is the highest. 
+
+In @fig-14, when using my more complex tree recipe, we can see similar results, as the number of randomly selected predictors (mtry) increase, the `roc_auc` values also increases. For this random forest model, there is not much variation with the min_n results, therefore indicating that the minimal node size is not as important as other tuning parameters.
+
+Due to time constraints, I was not able to tune the number of trees like I was in the boosted tree model, as well as unable to set specific levels for each tuning parameter. This is something that I want to look closely at in the future, as currently I input `trees = 1000`. By tuning the number of trees I can see the relationship between the number of trees and `roc_auc`, and validate my hypothesis that if the number of trees increase, the `roc_auc` would increase as well.
+
+#### Boosted Tree
+
+![Autoplot for boosted tree model using the first (basic) recipe.](figures/auto_7.png){#fig-15}
+
+![Autoplot for boosted tree model using the second (complex) recipe.](figures/auto_8.png){#fig-16}
+
+In both @fig-15 & @fig-16, it is important to note that as the learn rate increases, the `roc_auc` value also increases. A higher learning rate means that each individual tree or weak learner in the boosting ensemble contributes more to the overall model. In the future I would like to look into the learn rate more in-depth, as I understand it is one of the most important parameters for the boosted tree model. On the other hand, the min_n tuning parameter is not as important, as they all seem to be pretty even, with the highest `roc_auc` values at a minimal node size of 27 and 2 for both boosted tree models. It is interesting to see that the increase of trees mostly always leads to an increase in `roc_auc` values. This is something that I explicitly wanted to see, as I adjusted my tuning parameters accordingly, unlike in my random forest model. In the future I would love to play around with the number of trees, and increase the range even more to see if the trend continues, and a greater number of trees leads to a larger `roc_auc` value. I am curious as to why the minimal node size of 40 does not follow this trend, as when it uses 500 trees is the `roc_auc` value is actually less. This is something that I could look into in the future as I play around with the trees and minimal node size in my tuning parameters.
+
+After the analysis, we can clearly see why the boosted tree model performed the best. Because we were able to specifically adjust the tuning parameters for the boosted tree model, and uncover the relationship between the number of trees and `roc_auc`, the model was the most accurate and ultimately performed the best. I will now use the boosted tree model used with my "kitchen sink" recipe to perform my final fit.
+
+## Final Model Analysis
+<a name="Final Model Analysis"></a>
+
+I will now fit my best boosted tree model on my testing data. I will be using the `roc_auc` as well as `accuracy` performance metric to evaluate the model's performance.
+
+### ROC Curve
+
+```{r}
+#| label: fig-17
+#| echo: false
+#| fig-cap: The `roc_auc` value for my best boosted tree model.
+
+roc_final |> 
+  mutate("Metric" = .metric,
+         "Estimator" = .estimator,
+         "Estimate" = .estimate) |> 
+  select(-.metric, -.estimator, -.estimate) |> 
+  kable()
+```
+
+In @fig-17 it is shown that there is a `roc_auc` of 0.96324, which is considered very high, meaning my model performed well. It even performed slightly better than my boosted tree model on just the folds data. This ultimately suggests that the model is very good at predicting whether a hotel is cancelled or not, discriminating between 0 and 1.
+
+![Rocplot for my final boosted tree model to visualize the area under the curve.](figures/auto_roc.png){#fig-18}
+
+The ROC curve displayed in @fig-18 is very good. Because it is very close to 1, it means that the model performed well, and it expresses robust true positive rates alongside minimal false positive rates across various thresholds. This is visualized by he steep initial slope of the curve. 
+
+### Accuracy
+
+```{r}
+#| label: fig-19
+#| echo: false
+#| fig-cap: The `accuracy` value for my best boosted tree model.
+
+acc_final |> 
+  mutate("Metric" = .metric,
+         "Estimator" = .estimator,
+         "Estimate" = .estimate) |> 
+  select(-.metric, -.estimator, -.estimate) |> 
+  kable()
+```
+
+Accuracy represents the proportion of correctly classified instances out of all the instances in the dataset. We can see through @fig-19 that this final boosted tree model is around 91.2% accurate in predicting if hotels are not cancelled. It is important to look at `accuracy`, as well as `roc_auc` when evaluating models and their performance.
+
+
+```{r}
+#| label: fig-20
+#| echo: false
+#| fig-cap: Confusion matrix to check accuracy for final boosted tree model.
+
+conf_matrix |> 
+  autoplot(type = "heatmap")
+```
+
+@fig-20 represents a more visual way to interpret accuracy. By comparing the actual and predicted class labels, we can identify four outcomes: true positive, true negative, false positive, and false negative. As shown, when the boosted tree model predicts 0, it is correct 2,627 instances and incorrect on 244 instances. On the other hand, when the boosted tree model predicts 1, it is correct on 1,385 instances and incorrect on 144 instances. These numbers indicate that the model is pretty accurate, as it correspond with the percentage we found above.
+
+## Conclusion
+
+To conclude this project on machine learning and building models, it is important to note all of the aspects that go into forming good and accurate models, and interpreting them in order to truly understand the pros and cons of conducting each model.
+
+First, we were able to get insights about our dataset and target variable, which ultimately helped us understand our target variable better as well as discover the disproportionate aspects of the variable. We were ultimately able to fix this through for cross validation process later on. By conducting the initial setup for this project, we were able to easily prepare ourselves for the models we explored.
+
+As we ran the models we were able to evaluate which model was the best and which recipe that specific model used. To reiterate, we found out the the boosted tree model ran with the basic tree recipe performed the best, as expected due to specific tuning parameters and the history of the model performing well. Please view the [Model Building & Selection Results](#Model Building & Selection Results) section to get a full view of the results, and to confirm that the boosted tree model with the kitchen sink tree recipe ran the best with a `roc_auc` value of 0.9603079. 
+
+We were also able to fit this winning model on the testing dataset, and it was further revealed that this model works great in predicting hotel cancellations. To view a more in-depth analysis, please view the [Final Model Analysis](#Final Model Analysis) section.
+
+Although the results indicate that we have a pretty successful model, there are always things to alter for the future. First, I think it could be interesting to change the levels of the random forest model. Like I mentioned earlier, due to time constraints, I was not able to customize all of the levels of the random forest model like I was for the boosted tree model. This can be interesting to see if it will perform better than the boosted tree model after this specification. Also, tuning the number of trees in this model will be intriguing to look at and see if increasing the number of trees would increase the `roc_auc` values. 
+
+Next, I would like to do less folds and repeats during my cross validation phase. This requires less computational resources and time to complete, making cross-validation more feasible for large datasets or when computational resources are limited. This can be useful, as I can add observations to my dataset and not have to filter out so many of my observations. It can also lead to results being easier to interpret and communicate. 
+
+Lastly, I can research and analyze different learn rates for the boosted tree model. I understand that the learn_rate hyperparameter is very important and can lead to better and more accurate models. By exploring different learn rates, I can fine-tune my model performance, control model complexity, and optimize training dynamics for improved generalization ability and robustness to noisy data.
+
+All and all, this project has helped me understand the importance of machine learning and the steps that go with modeling data. It has opened my eyes to the hotel business, and their endurance of booking cancellations. By conducting this research and forming these models, I was able to get a sense of what can go into predicting hotel cancellations in order to understand how we can make changes in the future to prevent this.
+
+## References
+
+To obtain this dataset I used the website Kaggle that provides many datasets for exploration and modeling.
+
+::: {.callout-tip icon=false}
+
+## Link to Dataset
+
+[Hotel Booking Demand Dataset](https://www.kaggle.com/datasets/jessemostipak/hotel-booking-demand/data)
+
+:::
+
+## Appendix
+<a name="Appendix"></a>
+
+### Technical Information
+
+```{r}
+#| label: fig-21
+#| echo: false
+#| fig-cap: Table to view the count missing and percent missing.
+
+miss_sum
+```
+
+@fig-21 captures the amount missing for the three values that have missing values, as well as the percent missing.
+
+```{r}
+#| label: fig-22
+#| echo: false
+#| fig-cap: Visualization of missingness in `hotel_bookings_new` dataset.
+
+gg_miss_var(hotel_bookings_new)
+```
+
+@fig-22 gives a more visual representation of the missingness in the `hotel_bookings_new` dataset. As we can see, `cancel_rate` clearly has the most missing values, which is confirmed through @fig-21.
+
+```{r}
+#| label: fig-23
+#| echo: false
+#| fig-cap: Codebook for the `hotel_bookings_new` dataset.
+
+hotel_bookings_new_codebook |> 
+  kable()
+```
+
+I have attached the codebook (@fig-23) because I want readers to have it easily accessible when viewing the HTML document. This way people are able to get a better sense of the variables in `hotel_bookings_new` so they can get a more in-depth understand of what the variables used in the recipes were.
+
+### Extended EDA
+
+![A barplot conducted on the training dataset to indicating whether or not a hotel booking was cancelled, faceted by room match.](figures/fig_24.png){#fig-24}
+
+![A barplot conducted on the training dataset to indicating whether or not a hotel booking was cancelled, faceted by the customer type](figures/fig_25.png){#fig-25}
+
+I created @fig-24 & @fig-25 to see if they would be interesting categorical variables to include in my more complex recipe. After evaluating, I decided not to include it because I did not think it was necessary.

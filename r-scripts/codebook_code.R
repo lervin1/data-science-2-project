@@ -1,0 +1,56 @@
+### Codebook ----
+
+# create codebook for hotel_bookings_new
+hotel_bookings_new_codebook <- tibble(
+  variable = c("hotel", "is_canceled", "lead_time", "arrival_date_year", 
+                 "arrival_date_month", "stays_in_weekend_nights", "stays_in_week_nights", 
+                 "adults", "children", "babies", "meal", "market_segment", 
+                 "distribution_channel", "is_repeated_guest", "previous_cancellations", 
+                 "previous_bookings_not_canceled", "reserved_room_type", 
+                 "assigned_room_type", "booking_changes", "deposit_type", 
+                 "days_in_waiting_list", "customer_type", "adr", 
+                 "required_car_parking_spaces", "total_of_special_requests", 
+                 "reservation_status", "tot_book", "cancel_rate", 
+                 "room_match", "minors"),
+  description = c("Type of hotel (H1 = Resort Hotel, H2 = City Hotel)",
+                               "Value indicating if the booking was canceled (1) or not (0)",
+                               "Number of days between the entering date of the booking into the PMS and the arrival date",
+                               "Year of arrival date",
+                               "Month of arrival date",
+                               "Number of weekend nights (Saturday or Sunday) the guest stayed or booked to stay at the hotel",
+                               "Number of week nights (Monday to Friday) the guest stayed or booked to stay at the hotel",
+                               "Number of adults included in the booking",
+                               "Number of children included in the booking",
+                               "Number of babies included in the booking",
+                               "Type of meal booked (Undefined/SC = no meal package, BB = Bed & Breakfast, HB = Half board, FB = Full board)",
+                               "Market segment designation (e.g., TA = Travel Agents, TO = Tour Operators)",
+                               "Booking distribution channel (e.g., TA = Travel Agents, TO = Tour Operators)",
+                               "Value indicating if the booking name was from a repeated guest (1) or not (0)",
+                               "Number of previous bookings that were canceled by the customer prior to the current booking",
+                               "Number of previous bookings not canceled by the customer prior to the current booking",
+                               "Code of room type reserved",
+                               "Code for the type of room assigned to the booking",
+                               "Number of changes/amendments made to the booking from the moment the booking was entered on the PMS until the moment of check-in or cancellation",
+                               "Indication on if the customer made a deposit to guarantee the booking (No Deposit, Non Refund, Refundable)",
+                               "Number of days the booking was in the waiting list before it was confirmed to the customer",
+                               "Type of booking (Contract, Group, Transient, Transient-party)",
+                               "Average Daily Rate",
+                               "Number of car parking spaces required by the customer",
+                               "Number of special requests made by the customer",
+                               "Reservation last status (Canceled, Check-Out, No-Show)",
+                               "Total number of bookings made by the customer",
+                               "Cancellation rate of the customer",
+                               "Variable indicating whether the reserved room type matches the assigned room type",
+                               "Number of minors (children and babies) included in the booking"),
+  data_type = c("factor", "factor", "numeric", "factor", "factor",
+                "numeric", "numeric", "numeric", "numeric", "numeric",
+                "factor", "factor", "factor", "factor", "numeric",
+                "numeric", "factor", "factor", "numeric", "factor",
+                "numeric", "factor", "numeric", "numeric", "factor",
+                "numeric", "factor", "numeric", "factor", "numeric")
+  
+)
+
+# saving codebook
+write.csv(hotel_bookings_new_codebook, file = here("data/hotel_bookings_new_codebook.csv"),
+          row.names = FALSE)
